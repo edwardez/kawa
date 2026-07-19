@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 2.0.0) — used for the tag, release name and CFBundleShortVersionString"
+        required: true
+        type: string
+      notes:
+        description: "Release notes"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Stamp version into Info.plist
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" kawa/Info.plist
+
+      - name: Build (Release)
+        run: |
+          xcodebuild -project kawa.xcodeproj -scheme kawa -configuration Release \
+            -derivedDataPath build build
+
+      - name: Verify universal binary
+        run: |
+          lipo -info build/Build/Products/Release/Kawa.app/Contents/MacOS/Kawa | tee /dev/stderr \
+            | grep -q "x86_64 arm64"
+
+      - name: Zip app
+        run: ditto -c -k --keepParent build/Build/Products/Release/Kawa.app Kawa.zip
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ inputs.version }}
+          name: v${{ inputs.version }}
+          target_commitish: ${{ github.sha }}
+          body: |
+            ${{ inputs.notes }}
+
+            ---
+            > This build is ad-hoc signed and not notarized. After moving
+            > `Kawa.app` to `/Applications`, clear the quarantine flag before
+            > first launch:
+            > `xattr -d com.apple.quarantine /Applications/Kawa.app`
+          files: Kawa.zip
