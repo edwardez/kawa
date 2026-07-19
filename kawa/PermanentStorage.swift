@@ -11,7 +11,6 @@ class PermanentStorage {
 
   private static func set<T>(_ value: T, forKey key: StorageKey) {
     UserDefaults.standard.set((value as AnyObject), forKey: key.rawValue)
-    UserDefaults.standard.synchronize()
   }
 
   private enum StorageKey: String {
